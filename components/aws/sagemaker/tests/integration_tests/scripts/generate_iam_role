@@ -14,6 +14,8 @@ SERVICE_ACCOUNT="${5:-pipeline-runner}"
 aws_account=$(aws sts get-caller-identity --query Account --output text)
 trustfile="trust.json"
 
+cwd=$(dirname $(realpath $0))
+
 # if using an existing cluster, use the cluster arn to get the region and cluster name
 # example, cluster_arn=arn:aws:eks:us-east-1:12345678910:cluster/test
 cluster_name=$(echo ${CLUSTER_ARN} | cut -d'/' -f2)
@@ -41,7 +43,7 @@ function create_namespaced_iam_role {
     echo "A role for this cluster and namespace already exists in this account, assuming sagemaker access and proceeding."
   else
     echo "IAM Role does not exist, creating a new Role for the cluster"
-    aws iam create-role --role-name ${ROLE_NAME} --assume-role-policy-document file://${trustfile} --output=text
+    aws iam create-role --role-name ${ROLE_NAME} --assume-role-policy-document file://${trustfile} --output=text --query "Role.Arn"
     aws iam attach-role-policy --role-name ${ROLE_NAME}  --policy-arn arn:aws:iam::aws:policy/AmazonSageMakerFullAccess
   fi
 }
@@ -58,7 +60,7 @@ get_oidc_id
 echo "Delete the trust json file if it already exists"
 delete_generated_file "${trustfile}"
 echo "Generate a trust json"
-./generate_trust_policy ${CLUSTER_REGION} ${aws_account} ${oidc_id} ${SERVICE_NAMESPACE} ${SERVICE_ACCOUNT} > "${trustfile}"
+"$cwd"/generate_trust_policy ${CLUSTER_REGION} ${aws_account} ${oidc_id} ${SERVICE_NAMESPACE} ${SERVICE_ACCOUNT} > "${trustfile}"
 echo "Create the IAM Role using these values"
 create_namespaced_iam_role "${trustfile}"
 echo "Cleanup for the next run"
